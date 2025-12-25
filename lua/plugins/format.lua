@@ -1,67 +1,65 @@
 return {
-	"stevearc/conform.nvim",
+  "stevearc/conform.nvim",
+  event = { "BufWritePre" },
+  cmd = { "ConformInfo" },
+  keys = {
+    {
+      "<leader>f",
+      function()
+        require("conform").format({ async = true, lsp_fallback = true })
+      end,
+      mode = "n",
+      desc = "Format buffer",
+    },
+    {
+      "<leader>f",
+      function()
+        require("conform").format({ async = true, lsp_fallback = true })
+      end,
+      mode = "v",
+      desc = "Format selection",
+    },
+  },
 
-	event = { "BufWritePre" },
-	cmd = { "ConformInfo" },
-	keys = {
-		{
-			"<leader>f",
-			function()
-				require("conform").format({ async = true, lsp_fallback = true })
-			end,
-			mode = "n", -- set to normal mode
-			desc = "[F]ormat buffer",
-		},
-		{
-			"<leader>f",
-			function()
-				require("conform").format({ async = true, lsp_fallback = true, range = true })
-			end,
-			mode = "v", -- set to normal mode
-			desc = "[F]ormat buffer",
-		},
-	},
-	opts = {
-		notify_on_error = false,
-		format_on_save = function(bufnr)
-			-- Disable "format_on_save lsp_fallback" for languages that don't
-			-- have a well standardized coding style. You can add additional
-			-- languages here or re-enable it for the disabled ones.
-			local disable_filetypes = { c = true, cpp = true }
-			if disable_filetypes[vim.bo[bufnr].filetype] then
-				return nil
-			else
-				return {
-					timeout_ms = 500,
+  opts = function()
+    local cfg_root = vim.env.NVIM_CONFIG
+    if not cfg_root or cfg_root == "" then
+      cfg_root = vim.fn.stdpath("config")
+    end
 
-					lsp_fallback = true, -- use boolean
-				}
-			end
-		end,
-		formatters_by_ft = {
-			lua = { "stylua" },
-			sh = { "shfmt" },
-			bash = { "shfmt" },
-			go = { "goimports", "gofmt" },
-		},
-		formatters = {
-			stylua = {
-				command = vim.env.NVIM_CONFIG .. "/bin/stylua",
-			},
-			shfmt = {
-				command = vim.env.NVIM_CONFIG .. "/bin/shfmt",
-			},
-			--formatters_by_ft = {
-			--lua = { vim.env.NVIM_CONFIG .. "/bin/stylua" },
-			--go = { vim.env.NVIM_CONFIG .. "/bin/goimports", vim.env.NVIM_CONFIG .. "/bin/gofmt" },
-			--sh = { vim.env.NVIM_CONFIG .. "/bin/shfmt" },
+    return {
+      notify_on_error = true,
 
-			-- Conform can also run multiple formatters sequentially
-			-- python = { "isort", "black" },
-			--
-			-- You can use 'stop_after_first' to run the first available formatter from the list
-			-- javascript = { "prettierd", "prettier", stop_after_first = true },
-			--},
-		},
-	},
+      format_on_save = function(bufnr)
+        local disabled = { c = true, cpp = true }
+        if disabled[vim.bo[bufnr].filetype] then
+          return
+        end
+        return { timeout_ms = 3000, lsp_fallback = true }
+      end,
+
+      formatters_by_ft = {
+        lua = { "stylua" },
+        python = { "black" },
+        sh = { "shfmt" },
+        json = { "jq" },
+        yaml = { "prettier" },
+        javascript = { "prettier" },
+        typescript = { "prettier" },
+        html = { "prettier" },
+
+        -- Go: goimports already formats; no need to run gofmt after it
+        go = { "goimports" },
+      },
+
+      formatters = {
+        goimports = { command = cfg_root .. "/bin/goimports" },
+        stylua = { command = cfg_root .. "/bin/stylua" },
+        shfmt = { command = cfg_root .. "/bin/shfmt" },
+        black = { command = cfg_root .. "/bin/black" },
+        prettier = { command = cfg_root .. "/bin/prettier" },
+        jq = { command = cfg_root .. "/bin/jq" },
+      },
+    }
+  end,
 }

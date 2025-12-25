@@ -1,75 +1,88 @@
 return {
-	"folke/noice.nvim",
-	event = "VeryLazy",
-	dependencies = {
-		"MunifTanjim/nui.nvim",
-		"rcarriga/nvim-notify",
-	},
-	config = function()
-		-- Configure notify first (used by noice for long messages, etc.)
-		local ok_notify, notify = pcall(require, "notify")
-		if ok_notify then
-			notify.setup({
-				timeout = 500,
-				top_down = false, -- newest at bottom feels natural in terminals
-				stages = "fade", -- simple, TUI-friendly animations
-				render = "compact",
-			})
-			vim.notify = notify
-		end
+  "folke/noice.nvim",
+  event = "VeryLazy",
+  dependencies = {
+    "MunifTanjim/nui.nvim",
+    "rcarriga/nvim-notify",
+  },
+  config = function()
+    -- Configure notify first (Noice routes to it)
+    local notify = require("notify")
+    notify.setup({
+      timeout = 5000,
+      background_colour = "#000000",
+      stages = "fade",
+      minimum_width = 50,
+      render = "compact",
+    })
+    vim.notify = notify
 
-		-- Helper: tiny terminals fall back to inline cmdline
-		local use_popup = function()
-			local cols = vim.o.columns
-			return cols >= 80
-		end
+    local function cmdline_view()
+      -- Prefer popup on wide terminals; fall back on narrow ones.
+      return (vim.o.columns >= 120) and "cmdline_popup" or "cmdline"
+    end
 
-		require("noice").setup({
-			cmdline = {
-				view = use_popup() and "cmdline_popup" or "cmdline",
-			},
-			timeout = 500, -- Noice's own timeout (messages UI)
-			views = {
-				cmdline_popup = {
-					position = { row = "50%", col = "50%" },
-					size = { width = 60, height = "auto" },
-					border = { style = "rounded", padding = { 0, 1 } },
-					win_options = { winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder" },
-				},
-			},
+    local function setup_noice()
+      require("noice").setup({
+        cmdline = {
+          enabled = true,
+          view = cmdline_view(),
+          format = {
+            cmdline = { pattern = "^:", icon = "", lang = "vim" },
+            search_down = { kind = "search", pattern = "^/", icon = " ", lang = "regex" },
+            search_up = { kind = "search", pattern = "^%?", icon = " ", lang = "regex" },
+            filter = { pattern = "^:%s*!", icon = "$", lang = "bash" },
+            lua = { pattern = "^:%s*lua%s+", icon = "", lang = "lua" },
+            help = { pattern = "^:%s*h%s+", icon = "󰋖", lang = "vim" },
+            input = { view = "cmdline_input", icon = "󰥻 " },
+          },
+        },
 
-			-- Be quieter on routine editor chatter
-			routes = {
-				-- hide "written" messages on :write
-				{ filter = { event = "msg_show", find = "written" }, opts = { skip = true } },
-				-- hide yank summaries like "3 lines yanked"
-				{ filter = { event = "msg_show", find = "yanked" }, opts = { skip = true } },
-				-- hide search count messages like "/foo 3/10"
-				{ filter = { event = "msg_show", kind = "search_count" }, opts = { skip = true } },
-				-- hide "X fewer lines" after joins/deletes, etc.
-				{ filter = { event = "msg_show", find = "fewer lines" }, opts = { skip = true } },
-			},
+        messages = { enabled = true },
+        popupmenu = { enabled = true },
 
-			lsp = {
-				-- Keep markdown UX overrides for hover/signature/docs
-				override = {
-					["vim.lsp.util.convert_input_to_markdown_lines"] = true,
-					["vim.lsp.util.stylize_markdown"] = true,
-					-- NOTE: removed cmp.entry.get_documentation since you're using blink.cmp
-				},
-				-- optional: disable Noice’s signature help if you prefer plain floating
-				-- signature = { enabled = true },
-				progress = { enabled = true }, -- neat LSP progress notifications via notify
-				hover = { silent = true }, -- don’t spam on hover failures
-			},
+        routes = {
+          { filter = { event = "msg_show", kind = "", find = "written" }, opts = { skip = true } },
+          { filter = { event = "msg_show", kind = "", find = "yanked" }, opts = { skip = true } },
+          { filter = { event = "msg_show", kind = "search_count" }, opts = { skip = true } },
+        },
 
-			presets = {
-				bottom_search = false, -- you’re using the popup cmdline
-				command_palette = true,
-				long_message_to_split = true,
-				inc_rename = true,
-				lsp_doc_border = true,
-			},
-		})
-	end,
+        lsp = {
+          override = {
+            ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+            ["vim.lsp.util.stylize_markdown"] = true,
+            ["cmp.entry.get_documentation"] = true,
+          },
+        },
+
+        presets = {
+          bottom_search = false,
+          command_palette = true,
+          long_message_to_split = true,
+          inc_rename = true,
+        },
+      })
+    end
+
+    setup_noice()
+
+    -- Re-evaluate cmdline view on terminal resize.
+    -- Keeps "popup on wide terminals" without restart.
+    local group = vim.api.nvim_create_augroup("NoiceResize", { clear = true })
+    local timer = vim.uv.new_timer()
+    vim.api.nvim_create_autocmd("VimResized", {
+      group = group,
+      callback = function()
+        if not timer then
+          return
+        end
+        timer:stop()
+        timer:start(80, 0, function()
+          vim.schedule(function()
+            pcall(setup_noice)
+          end)
+        end)
+      end,
+    })
+  end,
 }

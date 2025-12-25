@@ -1,177 +1,201 @@
 return {
-	{
-		"folke/lazydev.nvim",
-		ft = "lua",
-		opts = {
-			library = {
-				{ path = "${3rd}/luv/library", words = { "vim%.uv" } },
-			},
-		},
-	},
-	{
-		"neovim/nvim-lspconfig",
-		dependencies = { "saghen/blink.cmp" },
-		config = function()
-			-- diagnostics: stable defaults
-			vim.diagnostic.config({
-				severity_sort = true,
-				float = { border = "rounded", source = "if_many" },
-				underline = { severity = vim.diagnostic.severity.ERROR },
-				signs = vim.g.have_nerd_font and {
-					text = {
-						[vim.diagnostic.severity.ERROR] = "󰅚 ",
-						[vim.diagnostic.severity.WARN] = "󰀪 ",
-						[vim.diagnostic.severity.INFO] = "󰋽 ",
-						[vim.diagnostic.severity.HINT] = "󰌶 ",
-					},
-				} or {},
-				virtual_text = {
-					source = "if_many",
-					spacing = 2,
-					format = function(d)
-						return d.message
-					end,
-				},
-			})
+  {
+    "folke/lazydev.nvim",
+    ft = "lua",
+    opts = {
+      library = {
+        { path = "${3rd}/luv/library", words = { "vim%.uv" } },
+      },
+    },
+  },
+  {
+    "neovim/nvim-lspconfig",
+    dependencies = { "saghen/blink.cmp" },
+    config = function()
+      -- diagnostics: stable defaults
+      vim.diagnostic.config({
+        severity_sort = true,
+        float = { border = "rounded", source = "if_many" },
+        underline = { severity = vim.diagnostic.severity.ERROR },
+        signs = vim.g.have_nerd_font and {
+          text = {
+            [vim.diagnostic.severity.ERROR] = "󰅚 ",
+            [vim.diagnostic.severity.WARN] = "󰀪 ",
+            [vim.diagnostic.severity.INFO] = "󰋽 ",
+            [vim.diagnostic.severity.HINT] = "󰌶 ",
+          },
+        } or {},
+        virtual_text = {
+          source = "if_many",
+          spacing = 2,
+          format = function(d)
+            local code = d.code or (d.user_data and d.user_data.lsp and d.user_data.lsp.code)
+            if code then
+              return string.format("%s (%s)", d.message, code)
+            end
+            return d.message
+          end,
+        },
+      })
 
-			-- LSP attach: maps + lightweight features
-			vim.api.nvim_create_autocmd("LspAttach", {
-				group = vim.api.nvim_create_augroup("kickstart-lsp-attach", { clear = true }),
-				callback = function(event)
-					local map = function(keys, func, desc, mode)
-						mode = mode or "n"
-						vim.keymap.set(mode, keys, func, { buffer = event.buf, desc = "LSP: " .. desc })
-					end
+      -- Rounded UI to match Noice etc.
+      vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(vim.lsp.handlers.hover, { border = "rounded" })
+      vim.lsp.handlers["textDocument/signatureHelp"] =
+        vim.lsp.with(vim.lsp.handlers.signature_help, { border = "rounded" })
 
-					-- navigation (fzf-lua)
-					map("<leader>ld", require("fzf-lua").lsp_definitions, "[L]SP [D]efinition")
-					map("<leader>lD", vim.lsp.buf.declaration, "[L]SP [D]eclaration")
-					map("<leader>lr", require("fzf-lua").lsp_references, "[L]SP [R]eferences")
-					map("<leader>li", require("fzf-lua").lsp_implementations, "[L]SP [I]mplementation")
-					map("<leader>ltd", require("fzf-lua").lsp_typedefs, "[L]SP [T]ype [D]ef")
-					map("<leader>lds", require("fzf-lua").lsp_document_symbols, "Doc Symbols")
-					map("<leader>lws", require("fzf-lua").lsp_workspace_symbols, "Workspace Symbols")
+      local capabilities = require("blink.cmp").get_lsp_capabilities()
 
-					-- actions & help
-					map("<leader>rn", vim.lsp.buf.rename, "[R]e[n]ame")
-					map("<leader>ca", vim.lsp.buf.code_action, "Code [A]ction", { "n", "x" })
-					map("<leader>ls", vim.lsp.buf.signature_help, "[L]SP [S]ignature")
-					map("<leader>lh", vim.lsp.buf.hover, "[L]SP [H]over")
-					map("[d", vim.diagnostic.goto_prev, "Prev diagnostic")
-					map("]d", vim.diagnostic.goto_next, "Next diagnostic")
-					map("<leader>e", require("fzf-lua").diagnostics_document, "Diagnostics (buffer)")
+      -- fzf-lua is lazy-loaded: use it if present, otherwise fallback to builtin LSP actions.
+      local function fzf_or_fallback(fzf_fn, fallback_fn)
+        return function()
+          local ok, fzf = pcall(require, "fzf-lua")
+          if ok and fzf and type(fzf[fzf_fn]) == "function" then
+            return fzf[fzf_fn]()
+          end
+          return fallback_fn()
+        end
+      end
 
-					local client = vim.lsp.get_client_by_id(event.data.client_id)
-					local function supports(method)
-						return client and client:supports_method(method, event.buf)
-					end
+      vim.api.nvim_create_autocmd("LspAttach", {
+        group = vim.api.nvim_create_augroup("lsp-attach", { clear = true }),
+        callback = function(event)
+          local map = function(keys, func, desc)
+            vim.keymap.set("n", keys, func, { buffer = event.buf, desc = "LSP: " .. desc })
+          end
 
-					-- document highlight if supported
-					if supports(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
-						local hl = vim.api.nvim_create_augroup("kickstart-lsp-highlight", { clear = false })
-						vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
-							buffer = event.buf,
-							group = hl,
-							callback = vim.lsp.buf.document_highlight,
-						})
-						vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-							buffer = event.buf,
-							group = hl,
-							callback = vim.lsp.buf.clear_references,
-						})
-						vim.api.nvim_create_autocmd("LspDetach", {
-							group = vim.api.nvim_create_augroup("kickstart-lsp-detach", { clear = true }),
-							callback = function(ev)
-								pcall(vim.lsp.buf.clear_references)
-								vim.api.nvim_clear_autocmds({ group = "kickstart-lsp-highlight", buffer = ev.buf })
-							end,
-						})
-					end
+          map("gd", fzf_or_fallback("lsp_definitions", vim.lsp.buf.definition), "Go to definition")
+          map("gr", fzf_or_fallback("lsp_references", vim.lsp.buf.references), "References")
+          map("gI", fzf_or_fallback("lsp_implementations", vim.lsp.buf.implementation), "Go to implementation")
+          map("<leader>D", fzf_or_fallback("lsp_typedefs", vim.lsp.buf.type_definition), "Type definition")
+          map("<leader>ds", fzf_or_fallback("lsp_document_symbols", vim.lsp.buf.document_symbol), "Document symbols")
+          map("<leader>ws", fzf_or_fallback("lsp_workspace_symbols", vim.lsp.buf.workspace_symbol), "Workspace symbols")
 
-					-- inlay hints toggle if supported
-					if supports(vim.lsp.protocol.Methods.textDocument_inlayHint) then
-						map("<leader>th", function()
-							vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = event.buf }))
-						end, "[T]oggle Inlay [H]ints")
-					end
+          map("<leader>rn", vim.lsp.buf.rename, "Rename")
+          map("<leader>ca", vim.lsp.buf.code_action, "Code action")
+          map("K", vim.lsp.buf.hover, "Hover docs")
 
-					-- optional: organize imports on save (Go only)
-					if client and client.name == "gopls" and client.server_capabilities.codeActionProvider then
-						vim.api.nvim_create_autocmd("BufWritePre", {
-							buffer = event.buf,
-							callback = function()
-								vim.lsp.buf.code_action({
-									context = { only = { "source.organizeImports" }, diagnostics = {} },
-									apply = true,
-								})
-							end,
-						})
-					end
-				end,
-			})
+          -- Document highlight (if supported)
+          local client = vim.lsp.get_client_by_id(event.data.client_id)
+          if client and client.server_capabilities.documentHighlightProvider then
+            local hl_group = vim.api.nvim_create_augroup("lsp-highlight", { clear = false })
 
-			-- capabilities from Blink
-			local capabilities = require("blink.cmp").get_lsp_capabilities()
+            vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+              buffer = event.buf,
+              group = hl_group,
+              callback = vim.lsp.buf.document_highlight,
+            })
 
-			-- offline-friendly cmd resolver
-			local function exe(p)
-				return vim.fn.executable(p) == 1
-			end
-			local function cmd_or_warn(path_list, name)
-				for _, p in ipairs(path_list) do
-					if exe(p) then
-						return { p }
-					end
-				end
-				vim.schedule(function()
-					vim.notify(("LSP binary for %s not found in NVIM_CONFIG/lsp"):format(name), vim.log.levels.WARN)
-				end)
-				return nil
-			end
+            vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+              buffer = event.buf,
+              group = hl_group,
+              callback = vim.lsp.buf.clear_references,
+            })
 
-			local BIN = vim.env.NVIM_CONFIG .. "/lsp"
-			local servers = {
-				gopls = {
-					cmd = cmd_or_warn({
-						BIN .. "/gopls/gopls",
-						BIN .. "/gopls", -- fallback if you keep it flat
-					}, "gopls"),
-					filetypes = { "go", "gomod" },
-					settings = {
-						gopls = {
-							gofumpt = true,
-							staticcheck = true,
-							completeUnimported = true,
-							analyses = { unusedparams = true, shadow = true },
-						},
-					},
-				},
-				lua_ls = {
-					cmd = cmd_or_warn({
-						BIN .. "/lua-language-server/bin/lua-language-server",
-						BIN .. "/luals/bin/lua-language-server",
-					}, "lua-language-server"),
-					settings = {
-						Lua = { completion = { callSnippet = "Replace" } },
-					},
-				},
-				--finacle = {
-				--	cmd = cmd_or_warn({ BIN .. "/finacle/finacle-lsp" }, "finacle-lsp"),
-				--	filetypes = { "scr" },
-				--},
-			}
+            vim.api.nvim_create_autocmd("LspDetach", {
+              group = vim.api.nvim_create_augroup("lsp-detach", { clear = true }),
+              callback = function(ev)
+                vim.lsp.buf.clear_references()
+                vim.api.nvim_clear_autocmds({ group = "lsp-highlight", buffer = ev.buf })
+              end,
+            })
+          end
 
-			for name, cfg in pairs(servers) do
-				cfg.capabilities = vim.tbl_deep_extend("force", {}, capabilities, cfg.capabilities or {})
-				require("lspconfig")[name].setup(cfg)
-			end
+          -- Go: organize imports on save (gopls)
+          if client and client.name == "gopls" then
+            vim.api.nvim_create_autocmd("BufWritePre", {
+              buffer = event.buf,
+              callback = function()
+                local params = vim.lsp.util.make_range_params()
+                params.context = { only = { "source.organizeImports" } }
+                local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 2000)
+                for _, res in pairs(result or {}) do
+                  for _, r in pairs(res.result or {}) do
+                    if r.edit then
+                      vim.lsp.util.apply_workspace_edit(r.edit, "utf-8")
+                    elseif r.command then
+                      vim.lsp.buf.execute_command(r.command)
+                    end
+                  end
+                end
+              end,
+              desc = "Go: organize imports",
+            })
+          end
+        end,
+      })
 
-			-- If you use Conform for on-save formatting, REMOVE this block:
-			-- (otherwise it can double-format)
-			-- vim.api.nvim_create_autocmd("BufWritePre", {
-			--   pattern = { "*.go", "*.py", "*.lua" },
-			--   callback = function(args) vim.lsp.buf.format({ bufnr = args.buf }) end,
-			-- })
-		end,
-	},
+      -- --------- Offline-friendly server cmd resolver ----------
+      local BIN = vim.env.NVIM_CONFIG and (vim.env.NVIM_CONFIG .. "/lsp") or (vim.fn.stdpath("config") .. "/lsp")
+
+      local function cmd_or_warn(candidates, _server_name)
+        for _, c in ipairs(candidates) do
+          if vim.fn.executable(c) == 1 then
+            return { c }
+          end
+        end
+        return nil
+      end
+
+      local missing = {}
+
+      local servers = {
+        gopls = {
+          cmd = cmd_or_warn({ BIN .. "/gopls/gopls", BIN .. "/gopls" }, "gopls"),
+          filetypes = { "go", "gomod" },
+          settings = {
+            gopls = {
+              gofumpt = true,
+              staticcheck = true,
+              completeUnimported = true,
+              analyses = { unusedparams = true, shadow = true },
+            },
+          },
+        },
+
+        lua_ls = {
+          cmd = cmd_or_warn({
+            BIN .. "/lua-language-server/bin/lua-language-server",
+            BIN .. "/luals/bin/lua-language-server",
+            BIN .. "/lua_ls/bin/lua-language-server",
+          }, "lua_ls"),
+          settings = {
+            Lua = {
+              completion = { callSnippet = "Replace" },
+              diagnostics = { globals = { "vim" } },
+            },
+          },
+        },
+
+        bashls = { cmd = cmd_or_warn({ BIN .. "/bash-language-server/bin/bash-language-server" }, "bashls") },
+        pyright = { cmd = cmd_or_warn({ BIN .. "/pyright-langserver", BIN .. "/pyright-langserver.cmd" }, "pyright") },
+        jsonls = { cmd = cmd_or_warn({ BIN .. "/vscode-json-language-server/bin/vscode-json-language-server" }, "jsonls") },
+        html = { cmd = cmd_or_warn({ BIN .. "/vscode-html-language-server/bin/vscode-html-language-server" }, "html") },
+        yamlls = { cmd = cmd_or_warn({ BIN .. "/yaml-language-server/bin/yaml-language-server" }, "yamlls") },
+        marksman = { cmd = cmd_or_warn({ BIN .. "/marksman" }, "marksman") },
+        clangd = { cmd = cmd_or_warn({ BIN .. "/clangd/bin/clangd", BIN .. "/clangd" }, "clangd") },
+        sqlls = { cmd = cmd_or_warn({ BIN .. "/sql-language-server/bin/sql-language-server" }, "sqlls") },
+
+        -- jdtls is usually started per-project with a separate setup.
+        -- jdtls = { cmd = cmd_or_warn({ BIN .. "/jdtls/bin/jdtls" }, "jdtls") },
+      }
+
+      for name, cfg in pairs(servers) do
+        cfg.capabilities = vim.tbl_deep_extend("force", {}, capabilities, cfg.capabilities or {})
+        if cfg.cmd == nil then
+          table.insert(missing, name)
+        else
+          require("lspconfig")[name].setup(cfg)
+        end
+      end
+
+      if #missing > 0 then
+        vim.schedule(function()
+          vim.notify(
+            ("LSP binaries not found under %s for: %s"):format(BIN, table.concat(missing, ", ")),
+            vim.log.levels.WARN
+          )
+        end)
+      end
+    end,
+  },
 }

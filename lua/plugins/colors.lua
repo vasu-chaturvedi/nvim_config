@@ -1,78 +1,36 @@
 return {
-	{
-		"sainnhe/gruvbox-material",
-		priority = 1000,
-		config = function()
-			vim.o.background = "dark" -- or "light" for light mode
+  -- Keep themes installed, but enable only one by default to reduce confusion.
+  {
+    "folke/tokyonight.nvim",
+    priority = 1000,
+    enabled = true,
+    config = function()
+      require("tokyonight").setup({
+        style = "storm",
+        transparent = false,
+        terminal_colors = true,
+      })
+      vim.cmd.colorscheme("tokyonight")
 
-			local cmds = {
-				"let g:gruvbox_material_background = 'hard'",
-				"let g:gruvbox_material_transparent_background = 2",
-				"let g:gruvbox_material_diagnostic_line_highlight = 1",
-				"let g:gruvbox_material_diagnostic_virtual_text = 'colored'",
-				"let g:gruvbox_material_enable_bold = 1",
-				"let g:gruvbox_material_enable_italic = 1",
-				"colorscheme gruvbox-material",
-			}
+      -- Lightweight theme switcher:
+      -- :Colors tokyonight | :Colors kanagawa | etc.
+      vim.api.nvim_create_user_command("Colors", function(cmd)
+        local name = cmd.args
+        if name == "" then
+          vim.notify("Usage: :Colors <colorscheme>", vim.log.levels.WARN)
+          return
+        end
+        local ok = pcall(vim.cmd.colorscheme, name)
+        if not ok then
+          vim.notify(("Colorscheme not found: %s"):format(name), vim.log.levels.ERROR)
+        end
+      end, { nargs = 1, complete = "color" })
+    end,
+  },
 
-			for _, cmd in ipairs(cmds) do
-				--vim.cmd(cmd)
-			end
-			--vim.cmd.colorscheme("gruvbox-material")
-		end,
-	},
-	{
-		"folke/tokyonight.nvim",
-		priority = 1000, -- Make sure to load this before all the other start plugins.
-		config = function()
-			vim.o.background = "dark" -- or "light" for light mode
-			---@diagnostic disable-next-line: missing-fields
-			require("tokyonight").setup({
-				styles = {
-					comments = { italic = false }, -- Disable italics in comments
-				},
-			})
-			vim.cmd.colorscheme("tokyonight-night")
-		end,
-	},
-
-	{
-		"rebelot/kanagawa.nvim",
-		branch = "master",
-
-		config = function()
-			vim.o.background = "dark" -- or "light" for light mode
-			require("kanagawa").setup({
-				transparent = true,
-				colors = {
-					theme = {
-						all = {
-							ui = {
-								bg_gutter = "none",
-							},
-						},
-					},
-				},
-				overrides = function(colors)
-					return {
-						["@markup.link.url.markdown_inline"] = { link = "Special" }, -- (url)
-						["@markup.link.label.markdown_inline"] = { link = "WarningMsg" }, -- [label]
-						["@markup.italic.markdown_inline"] = { link = "Exception" }, -- *italic*
-						["@markup.raw.markdown_inline"] = { link = "String" }, -- `code`
-						["@markup.list.markdown"] = { link = "Function" }, -- + list
-						["@markup.quote.markdown"] = { link = "Error" }, -- > blockcode
-					}
-				end,
-			})
-			--vim.cmd("colorscheme kanagawa")
-		end,
-	},
-	{
-		"rose-pine/neovim",
-		name = "rose-pine",
-		config = function()
-			--vim.o.background = "dark" -- or "light" for light mode
-			--vim.cmd("colorscheme rose-pine")
-		end,
-	},
+  { "sainnhe/gruvbox-material", priority = 900, enabled = false },
+  { "rebelot/kanagawa.nvim", priority = 900, enabled = false },
+  { "EdenEast/nightfox.nvim", priority = 900, enabled = false },
+  { "rose-pine/neovim", name = "rose-pine", priority = 900, enabled = false },
+  { "catppuccin/nvim", name = "catppuccin", priority = 900, enabled = false },
 }

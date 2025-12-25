@@ -1,22 +1,27 @@
 return {
-    "ThePrimeagen/harpoon",
-    branch = "harpoon2",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    config = function()
-        local harpoon = require("harpoon")
-        harpoon:setup()
+  "ThePrimeagen/harpoon",
+  branch = "harpoon2",
+  dependencies = { "nvim-lua/plenary.nvim" },
+  config = function()
+    local harpoon = require("harpoon")
+    harpoon:setup()
 
-        vim.keymap.set("n", "<leader>a", function() harpoon:list():add() end)
-        vim.keymap.set("n", "<C-e>", function() harpoon.ui:toggle_quick_menu(harpoon:list()) end)
+    vim.keymap.set("n", "<leader>ha", function() harpoon:list():add() end, { desc = "Harpoon: add file" })
+    vim.keymap.set(
+      "n",
+      "<leader>hm",
+      function() harpoon.ui:toggle_quick_menu(harpoon:list()) end,
+      { desc = "Harpoon: menu" }
+    )
 
-        vim.keymap.set("n", "<m-1>", function() harpoon:list():select(1) end)
-        vim.keymap.set("n", "<m-2>", function() harpoon:list():select(2) end)
-        vim.keymap.set("n", "<m-3>", function() harpoon:list():select(3) end)
-        vim.keymap.set("n", "<m-4>", function() harpoon:list():select(4) end)
-        vim.keymap.set("n", "<m-5>", function() harpoon:list():select(5) end)
-        vim.keymap.set("n", "<m-6>", function() harpoon:list():select(6) end)
-        vim.keymap.set("n", "<m-7>", function() harpoon:list():select(7) end)
-        vim.keymap.set("n", "<m-8>", function() harpoon:list():select(8) end)
-    end,
+    -- Leader alternatives (more reliable over SSH/Putty than Alt-#)
+    for i = 1, 9 do
+      vim.keymap.set("n", ("<leader>%d"):format(i), function() harpoon:list():select(i) end, { desc = "Harpoon: select " .. i })
+    end
+
+    -- Keep Alt-# for terminals that support it
+    for i = 1, 8 do
+      vim.keymap.set("n", ("<M-%d>"):format(i), function() harpoon:list():select(i) end, { desc = "Harpoon: select " .. i })
+    end
+  end,
 }
-
