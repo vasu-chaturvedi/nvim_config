@@ -1,125 +1,87 @@
--- define colors
-local colors = {
-
-    blue = "#83a598",
-
-    green = "#8ec07c",
-    violet = "#d3869b",
-    yellow = "#d8a657",
-    red = "#FF4A4A",
-
-    cream = "#fff4d2",
-    black = "#1d1d1d",
-    grey = "#393939",
-    dark = "#292929",
-}
-
--- custom modifications
-local gruv_material = {
-
-    normal = {
-        a = { bg = colors.dark, fg = colors.cream, gui = "bold" },
-        b = { bg = colors.grey, fg = colors.cream, gui = "bold" },
-        c = { bg = colors.blue, fg = colors.black, gui = "bold" },
-    },
-    insert = {
-        a = { bg = colors.blue, fg = colors.black, gui = "bold" },
-        c = { bg = colors.violet, fg = colors.black, gui = "bold" },
-    },
-    visual = {
-        a = { bg = colors.violet, fg = colors.black, gui = "bold" },
-        c = { bg = colors.dark, fg = colors.cream, gui = "bold" },
-    },
-    command = {
-        a = { bg = colors.green, fg = colors.black, gui = "bold" },
-        c = { bg = colors.black, fg = colors.cream, gui = "bold" },
-    },
-    terminal = {
-        a = { bg = colors.red, fg = colors.black, gui = "bold" },
-        c = { bg = colors.black, fg = colors.cream, gui = "bold" },
-    },
-
-    replace = {
-
-        a = { bg = colors.blue, fg = colors.black, gui = "bold" },
-        c = { bg = colors.violet, fg = colors.black, gui = "bold" },
-    },
-    inactive = {
-
-        a = { bg = colors.green, fg = colors.black, gui = "bold" },
-        c = { bg = colors.black, fg = colors.cream, gui = "bold" },
-    },
-}
-
--- plugin
+-- lua/plugins/lualine.lua
 return {
-    "nvim-lualine/lualine.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    event = { "VeryLazy" },
-    opts = {
-        icons_enabled = true,
-        options = {
-            --theme = gruv_material,
-            theme = "auto",
-            component_separators = { left = "│", right = "│" },
-            disabled_filetypes = { "snacks_dashboard" },
-            component_separators = { left = "", right = "" },
-            section_separators = { left = "", right = "" },
-        },
-        sections = {
-            lualine_a = {
-                "mode",
-            },
-            lualine_b = {
-                {
-                    "lsp_status",
-                    icon = "",
-                    symbols = {
-                        spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
-                        done = "✓",
-                        separator = " ",
-                    },
-                    ignore_lsp = {},
-                },
-            },
-            lualine_c = {
-                {
-                    "filename",
-                    path = 3,
-                    shorting_target = 0,
-                },
-            },
-            lualine_x = {
-                "filesize",
-            },
-            lualine_y = {
-                "searchcount",
-                "selectioncount",
-                "encoding",
-                "filetype",
-            },
-            lualine_z = {
+	"nvim-lualine/lualine.nvim",
+	dependencies = { "nvim-tree/nvim-web-devicons" },
+	event = "VeryLazy",
+	opts = function()
+		local nerd = vim.g.have_nerd_font == true
 
-                "progress",
-                "location",
-            },
-        },
-        inactive_sections = {
-            lualine_a = {},
-            lualine_b = {},
-            lualine_c = { "filename" },
-            lualine_x = { "location" },
-            lualine_y = {},
-            lualine_z = {},
-        },
-        tabline = {},
-        winbar = {},
+		-- Custom LSP status: prefer Noice LSP progress; fallback to client count
+		local function lsp_status_component()
+			local ok_noice, noice = pcall(require, "noice")
+			if ok_noice then
+				local api_ok, api = pcall(require, "noice").api
+				if api_ok and api.status and api.status.lsp_progress and api.status.lsp_progress.has() then
+					return api.status.lsp_progress.get()
+				end
+			end
+			local clients = vim.lsp.get_clients({ bufnr = 0 })
+			if #clients > 0 then
+				return (nerd and " " or "LSP ") .. #clients
+			end
+			return ""
+		end
 
-        inactive_winbar = {},
-        extensions = {},
-    },
-    config = function(_, opts)
-        require("lualine").setup(opts)
-        vim.opt.laststatus = 3
-    end,
+		return {
+			options = {
+				theme = "auto",
+				icons_enabled = nerd,
+				disabled_filetypes = { "snacks_dashboard" },
+
+				-- use glyphs only if Nerd Font is present
+				component_separators = nerd and { left = "", right = "" } or { left = "|", right = "|" },
+				section_separators = nerd and { left = "", right = "" } or { left = "", right = "" },
+
+				-- if you ever want minimal UI in special windows, you can add:
+				-- globalstatus is enabled below in config()
+			},
+
+			sections = {
+				lualine_a = { "mode" },
+
+				lualine_b = {
+					{ lsp_status_component, icon = nerd and "" or nil, separator = " ", padding = 1 },
+					-- you can also add 'branch' or 'diff' here if you like
+				},
+
+				lualine_c = {
+					{ "filename", path = 3, shorting_target = 0 }, -- absolute, keep full path
+				},
+
+				lualine_x = {
+					"filesize",
+				},
+
+				lualine_y = {
+					"searchcount",
+					"selectioncount",
+					"encoding",
+					"filetype",
+				},
+
+				lualine_z = {
+					"progress",
+					"location",
+				},
+			},
+
+			inactive_sections = {
+				lualine_a = {},
+				lualine_b = {},
+				lualine_c = { "filename" },
+				lualine_x = { "location" },
+				lualine_y = {},
+				lualine_z = {},
+			},
+
+			tabline = {},
+			winbar = {},
+			inactive_winbar = {},
+			extensions = {},
+		}
+	end,
+	config = function(_, opts)
+		require("lualine").setup(opts)
+		vim.opt.laststatus = 3 -- global statusline (good on 0.11.x)
+	end,
 }
