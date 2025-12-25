@@ -1,63 +1,96 @@
--- fzf-lua configuration for Neovim
-
--- This file sets up ibhagwan/fzf-lua as a standalone fuzzy finder
-
+-- lua/plugins/fzf.lua
 return {
-  {
-    'ibhagwan/fzf-lua',
-    dependencies = {
-      -- Optional: icons support
-      { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
-    },
-    config = function()
+	{
+		"ibhagwan/fzf-lua",
+		-- `keys` creates lazy keymaps that auto-load the plugin on first press
+		keys = {
+			-- Use command strings when no extra options are needed (fastest path)
+			{ "<leader>ff", "<cmd>FzfLua files<CR>", desc = "Files" },
+			{ "<leader>fg", "<cmd>FzfLua live_grep<CR>", desc = "Grep" },
+			{ "<leader>fw", "<cmd>FzfLua grep_cword<CR>", desc = "Grep word" },
+			{ "<leader>fb", "<cmd>FzfLua buffers<CR>", desc = "Buffers" },
+			{ "<leader>fh", "<cmd>FzfLua help_tags<CR>", desc = "Help" },
+			{ "<leader>fk", "<cmd>FzfLua keymaps<CR>", desc = "Keymaps" },
+			{ "<leader>fd", "<cmd>FzfLua diagnostics_document<CR>", desc = "Diagnostics (buffer)" },
+			{ "<leader>fr", "<cmd>FzfLua resume<CR>", desc = "Resume" },
+			{ "<leader>f.", "<cmd>FzfLua oldfiles<CR>", desc = "Recent files" },
+			{ "<leader>/", "<cmd>FzfLua blines<CR>", desc = "Search in buffer" },
 
-      local fzf = require('fzf-lua')
-      fzf.setup({
-        winopts = {
-          height = 0.85,
-          width = 0.80,
-          row = 0.35,
-          col = 0.50,
-          preview = { default = 'bat', border = 'border' },
-        },
-        keymap = {
-          builtin = {
+			-- When you need options, use a function; Lazy will still load-on-press
+			{
+				"<leader>s/",
+				function()
+					require("fzf-lua").live_grep({ grep_open_files = true, prompt = "Grep in Open Files" })
+				end,
+				desc = "Grep in open files",
+			},
 
-            -- Use <C-j>/<C-k> to move selection
-            ['<C-j>'] = 'down',
-            ['<C-k>'] = 'up',
-          },
-        },
+			-- Avoid TS swap-next conflict; use <leader>fn for NVim config files
+			{
+				"<leader>fn",
+				function()
+					require("fzf-lua").files({ cwd = vim.fn.stdpath("config") })
+				end,
+				desc = "Neovim config files",
+			},
 
-      })
+			-- Optional: visual-mode searches
+			{
+				"<leader>ss",
+				function()
+					local sel = vim.fn.trim(vim.fn.getreg("v"))
+					require("fzf-lua").live_grep({ search = sel })
+				end,
+				mode = "v",
+				desc = "Live grep selection",
+			},
+			{
+				"<leader>sw",
+				function()
+					local sel = vim.fn.getreg("v")
+					require("fzf-lua").grep({ search = sel, no_esc = true, exact = true })
+				end,
+				mode = "v",
+				desc = "Grep selection (literal)",
+			},
+		},
 
+		-- (Optional) also allow :FzfLua to trigger lazy-load
+		cmd = "FzfLua",
 
-      -- Keymaps (mirroring your Telescope setup)
-      vim.keymap.set('n', '<leader>fh', fzf.help_tags, { desc = '[S]earch [H]elp (fzf-lua)' })
-      vim.keymap.set('n', '<leader>fk', fzf.keymaps, { desc = '[S]earch [K]eymaps (fzf-lua)' })
+		dependencies = {
+			{ "nvim-tree/nvim-web-devicons", enabled = vim.g.have_nerd_font },
+		},
 
-      vim.keymap.set('n', '<leader>ff', fzf.files, { desc = '[S]earch [F]iles (fzf-lua)' })
-
-      vim.keymap.set('n', '<leader>fs', fzf.builtin, { desc = '[S]earch [S]elect fzf-lua' })
-      vim.keymap.set('n', '<leader>fw', fzf.grep_cword, { desc = '[S]earch current [W]ord (fzf-lua)' })
-      vim.keymap.set('n', '<leader>fg', fzf.live_grep, { desc = '[S]earch by [G]rep (fzf-lua)' })
-      vim.keymap.set('n', '<leader>fd', fzf.diagnostics_document, { desc = '[S]earch [D]iagnostics (fzf-lua)' })
-      vim.keymap.set('n', '<leader>fr', fzf.resume, { desc = '[S]earch [R]esume (fzf-lua)' })
-      vim.keymap.set('n', '<leader>f.', fzf.oldfiles, { desc = '[S]earch Recent Files (fzf-lua)' })
-      vim.keymap.set('n', '<leader><leader>', fzf.buffers, { desc = '[ ] Find existing buffers (fzf-lua)' })
-      vim.keymap.set('n', '<leader>/', function()
-        fzf.blines() -- preview enabled by default
-      end, { desc = '[/] Fuzzily search in current buffer (fzf-lua)' })
-      vim.keymap.set('n', '<leader>s/', function()
-
-        fzf.live_grep({ grep_open_files = true, prompt = 'Live Grep in Open Files' })
-      end, { desc = '[S]earch [/] in Open Files (fzf-lua)' })
-      vim.keymap.set('n', '<leader>sn', function()
-        fzf.files({ cwd = vim.fn.stdpath('config') }) -- preview enabled by default
-      end, { desc = '[S]earch [N]eovim files (fzf-lua)' })
-    end,
-
-  },
-
+		-- normal opts/config as before
+		opts = function()
+			-- offline: add your portable bin to PATH so `rg`/`fzf` are found
+			local BIN = (vim.env.NVIM_CONFIG or vim.fn.stdpath("config")) .. "/bin"
+			if vim.fn.isdirectory(BIN) == 1 and not (vim.env.PATH or ""):find(BIN, 1, true) then
+				vim.env.PATH = BIN .. ":" .. vim.env.PATH
+			end
+			local has_bat = vim.fn.executable("bat") == 1
+			return {
+				winopts = {
+					height = 0.98,
+					width = 0.98,
+					row = 0.01,
+					col = 0.01,
+					preview = {
+						default = has_bat and "bat" or "builtin",
+						border = "rounded",
+						layout = "horizontal",
+						horizontal = "right:70%",
+						vertical = "up:80%",
+						title = "Preview",
+					},
+				},
+				keymap = { builtin = { ["<C-j>"] = "down", ["<C-k>"] = "up" } },
+				grep = { rg_opts = [[--hidden --line-number --column --no-heading --smart-case -g !.git/]] },
+			}
+		end,
+		config = function(_, opts)
+			require("fzf-lua").setup(opts)
+		end,
+	},
 }
-
