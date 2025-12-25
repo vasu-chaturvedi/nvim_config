@@ -45,7 +45,7 @@ return {
 			-- See :h blink-cmp-config-keymap for defining your own keymap
 
 			keymap = {
-				preset = "default",
+				preset = "super-tab",
 				["<C-Z>"] = { "accept", "fallback" },
 			},
 
@@ -64,31 +64,43 @@ return {
 			sources = {
 				default = { "lsp", "path", "snippets", "buffer", "emoji", "sql" },
 				providers = {
-					-- LuaSnip-backed snippets
-					snippets = { name = "snippets" },
-
 					emoji = {
 						module = "blink-emoji",
+
 						name = "Emoji",
-						score_offset = 15,
-						opts = { insert = true },
+						score_offset = 15, -- Tune by preference
+						opts = { insert = true }, -- Insert emoji (default) or complete its name
 						should_show_items = function()
-							return vim.tbl_contains({ "gitcommit", "markdown" }, vim.o.filetype)
+							return vim.tbl_contains(
+
+								-- Enable emoji completion only for git commits and markdown.
+								-- By default, enabled for all file-types.
+								{ "gitcommit", "markdown" },
+								vim.o.filetype
+							)
 						end,
 					},
-
-					-- cmp-sql via compat shim
 					sql = {
+						-- IMPORTANT: use the same name as you would for nvim-cmp
 						name = "sql",
 						module = "blink.compat.source",
+
+						-- all blink.cmp source config options work as normal:
 						score_offset = -3,
-						-- pass cmp-sql options here when you need them:
-						opts = {
-							-- e.g. dialect = "mysql" | "postgresql"
-							-- dialect = "oracle", -- if supported in your setup
-						},
+
+						-- this table is passed directly to the proxied completion source
+						-- as the `option` field in nvim-cmp's source config
+						--
+
+						-- this is NOT the same as the opts in a plugin's lazy.nvim spec
+						opts = {},
 						should_show_items = function()
-							return vim.tbl_contains({ "sql" }, vim.o.filetype)
+							return vim.tbl_contains(
+								-- Enable emoji completion only for git commits and markdown.
+								-- By default, enabled for all file-types.
+								{ "sql" },
+								vim.o.filetype
+							)
 						end,
 					},
 				},
